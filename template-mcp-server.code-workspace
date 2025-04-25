@@ -2,6 +2,12 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "../gcs-mcp-server"
+		},
+		{
+			"path": "../Gmail-MCP-Server"
 		}
 	],
 	"settings": {

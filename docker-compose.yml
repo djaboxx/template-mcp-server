@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  mcp-server:
+    build: .
+    volumes:
+      - ./src:/app/src
+      # Uncomment and modify for your specific needs
+      #- ${CREDENTIALS_PATH}:/tmp/credentials:ro
+    environment:
+      # Add your environment variables here
+      - ENV_VAR_NAME=value
+    ports:
+      # Only expose if using HTTP transport instead of stdio
+      - "127.0.0.1:3000:3000"

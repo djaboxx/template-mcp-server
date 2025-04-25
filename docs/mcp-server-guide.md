@@ -4,11 +4,17 @@
 
 This guide details how to create a Model Context Protocol (MCP) server that integrates with Visual Studio Code. This template repository provides a foundation for building MCP servers that can be used by VS Code to extend AI capabilities through custom tools and services.
 
+MCP follows a client-server architecture where:
+- MCP clients (like VS Code) connect to MCP servers and request actions on behalf of the AI model
+- MCP servers provide one or more tools that expose specific functionalities through a well-defined interface
+- The Model Context Protocol defines the message format for communication between clients and servers
+
 ## Prerequisites
 
 1. Python 3.8 or higher
 2. Visual Studio Code
 3. Basic understanding of the VS Code extension model
+4. VS Code MCP extension (required for testing)
 
 ## Setting Up Your Development Environment
 
@@ -30,6 +36,44 @@ This guide details how to create a Model Context Protocol (MCP) server that inte
    ```
 
 3. Install the VS Code MCP extension (if not already installed)
+
+### 2. Configuration Options
+
+You can configure your MCP server in several ways:
+
+1. Workspace Configuration (`.vscode/mcp.json`):
+```json
+{
+  "servers": {
+    "your-server-name": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["${workspaceFolder}/src/server.py"],
+      "env": {
+        "CUSTOM_ENV": "${input:custom_env_var}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "custom_env_var",
+      "description": "Custom environment variable",
+      "password": true
+    }
+  ]
+}
+```
+
+2. User Settings:
+   - Add server configuration to VS Code's user settings.json
+   - Useful for personal configurations that shouldn't be committed to version control
+   - Supports the same configuration format as workspace configuration
+
+3. Command Line:
+   ```bash
+   code --add-mcp '{"name":"server-name","command":"python","args":["server.py"]}'
+   ```
 
 ## Implementation Guide
 
@@ -60,20 +104,20 @@ class MCPServer(Server):
 
 ### 2. Implementing Tools
 
-Tools are the primary way your MCP server extends VS Code's AI capabilities. When implementing tools:
+Tools are the primary way your MCP server extends VS Code's AI capabilities. Tools should be:
 
-1. Use clear, descriptive names
-2. Provide detailed docstrings
-3. Define proper type hints
-4. Handle errors gracefully
-5. Return structured data when possible
+1. Focused and atomic
+2. Well-documented with clear docstrings
+3. Properly typed with type hints
+4. Error-handled appropriately
+5. Returning structured data when possible
 
 Example tool patterns:
 
 ```python
 class MyMCPServer(Server):
     @tool("Process file")
-    def process_file(self, file_path: str) -> dict:
+    async def process_file(self, file_path: str) -> dict:
         """Process a file and return results.
         
         Args:
@@ -82,10 +126,19 @@ class MyMCPServer(Server):
         Returns:
             Dict containing processing results
         """
-        # Implementation
+        try:
+            # Implementation
+            pass
+        except Exception as e:
+            logger.error(f"Error processing file: {e}")
+            raise ToolError(f"Failed to process file: {str(e)}")
 
     @tool("Search items")
-    def search_items(self, query: str, max_results: int = 10) -> list:
+    async def search_items(
+        self, 
+        query: str, 
+        max_results: int = 10
+    ) -> List[Dict[str, Any]]:
         """Search for items matching the query.
         
         Args:
@@ -93,93 +146,84 @@ class MyMCPServer(Server):
             max_results: Maximum number of results to return
             
         Returns:
-            List of matching items
+            List of matching items with their details
         """
         # Implementation
+        pass
 ```
 
-### 3. Error Handling
+### 3. Error Handling and Logging
 
-Implement proper error handling for:
-- Invalid inputs
-- Resource access issues
-- External service failures
-- Timeouts
-- VS Code integration errors
+Implement comprehensive error handling:
+- Input validation with clear error messages
+- Resource access error handling
+- External service failure management
+- Timeout handling
+- Proper error logging
+- VS Code integration error handling
 
-## VS Code Integration
+Use structured logging:
+```python
+import logging
 
-### 1. Local Development
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-Configure VS Code to use your MCP server:
-
-1. Create `.vscode/mcp.json`:
-```json
-{
-  "servers": {
-    "your-server-name": {
-      "type": "stdio",
-      "command": "python",
-      "args": ["src/server.py"]
-    }
-  }
-}
+# Add handlers as needed
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger.addHandler(handler)
 ```
 
-2. Set up launch configurations in `.vscode/launch.json` for debugging
+## Security Best Practices
 
-### 2. Testing with VS Code
+### 1. Credentials Management
 
-1. Use the Command Palette to:
-   - List MCP servers
-   - Check server status
-   - Test tool invocations
+- Never hardcode credentials in server code
+- Use VS Code's input variables for sensitive data
+- Support environment variables for configuration
+- Use secure credential storage when possible
 
-2. Debug integration using:
-   - VS Code's Debug Console
-   - Output channels
-   - Log files
+### 2. Input Validation
 
-## Best Practices
-
-### 1. Tool Design
-
-- Keep tools focused and atomic
-- Use clear parameter names
-- Provide good default values
-- Return structured data
-- Include proper error messages
-
-### 2. Performance
-
-- Implement caching where appropriate
-- Use async/await for I/O operations
-- Handle concurrent requests properly
-- Monitor resource usage
-
-### 3. Security
-
-- Validate all inputs
-- Handle sensitive data properly
+- Validate all tool inputs
+- Sanitize file paths and URLs
 - Implement proper access controls
-- Follow VS Code security guidelines
+- Follow the principle of least privilege
 
-## Testing
+### 3. Error Messages
 
-1. Unit Tests:
+- Avoid exposing sensitive information in error messages
+- Log detailed errors for debugging
+- Return sanitized error messages to users
+
+## Testing and Debugging
+
+### 1. Local Testing
+
+1. Use VS Code's built-in debugging:
+   - Set breakpoints in your server code
+   - Use the Debug Console
+   - Monitor server output in Output panel
+
+2. Tool Testing:
    - Test individual tools
-   - Test error handling
-   - Test edge cases
-
-2. Integration Tests:
-   - Test VS Code integration
+   - Verify error handling
+   - Check edge cases
    - Test concurrent operations
-   - Test resource management
 
-3. VS Code-specific Tests:
-   - Test with different workspace types
-   - Test with various VS Code settings
-   - Test extension interop
+### 2. Integration Testing
+
+1. VS Code Integration:
+   - Test tool discovery
+   - Verify input handling
+   - Check error reporting
+   - Test with different workspace configurations
+
+2. AI Model Integration:
+   - Test tool invocation patterns
+   - Verify response handling
+   - Check error recovery
 
 ## Deployment
 
@@ -198,6 +242,76 @@ If distributing your server:
 - Include configuration examples
 - Document requirements
 
+## Docker Support
+
+### 1. Docker Configuration
+
+The template includes Docker support out of the box:
+
+1. `Dockerfile`: Base configuration for running the MCP server
+   - Uses Python 3.12 slim image for minimal size
+   - Runs as non-root user for security
+   - Configurable for both stdio and HTTP transport
+   - Easy to extend for specific needs
+
+2. `docker-compose.yml`: Development and deployment configuration
+   - Volume mounts for live code updates
+   - Environment variable support
+   - Configurable port mapping
+   - Easy credential mounting
+
+3. `.dockerignore`: Optimized build context
+   - Excludes development artifacts
+   - Prevents sensitive files from being included
+   - Reduces build time and image size
+
+### 2. Using Docker
+
+#### Local Development
+
+```bash
+# Build and start the server
+docker compose up --build
+
+# Run in detached mode
+docker compose up -d
+
+# View logs
+docker compose logs -f
+```
+
+#### Production Deployment
+
+1. Build optimized image:
+   ```bash
+   docker build -t your-mcp-server .
+   ```
+
+2. Run with specific configuration:
+   ```bash
+   docker run -e ENV_VAR_NAME=value your-mcp-server
+   ```
+
+### 3. Customizing for Your MCP Server
+
+1. Environment Variables:
+   - Add environment variables in docker-compose.yml
+   - Use .env file for local development
+   - Configure credentials mounting
+
+2. Transport Configuration:
+   - stdio (default): No additional configuration needed
+   - HTTP: Uncomment EXPOSE and ENV settings in Dockerfile
+
+3. Dependencies:
+   - Add requirements to requirements.txt
+   - They will be installed during build
+
+4. Security:
+   - Server runs as non-root user
+   - Mount credentials as read-only
+   - Use environment variables for sensitive data
+
 ## Contributing
 
 1. Follow the code style guide
@@ -210,3 +324,4 @@ If distributing your server:
 - [VS Code Extension API](https://code.visualstudio.com/api)
 - [MCP Protocol Specification](https://github.com/microsoft/model-control-protocol)
 - [Python MCP SDK Documentation](https://microsoft.github.io/model-control-protocol/python-sdk/)
+- [Official VS Code MCP Documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers)
